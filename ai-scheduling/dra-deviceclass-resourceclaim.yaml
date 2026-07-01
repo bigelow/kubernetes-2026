@@ -18,9 +18,13 @@ spec:
   spec:
     devices:
       requests:
+        # GA resource.k8s.io/v1: a request names a class via `exactly`
+        # (vs `firstAvailable` for prioritized alternatives). deviceClassName
+        # and count live under `exactly`, not directly on the request.
         - name: gpu
-          deviceClassName: nvidia-gpu
-          count: 1
+          exactly:
+            deviceClassName: nvidia-gpu
+            count: 1
 ---
 apiVersion: v1
 kind: Pod
