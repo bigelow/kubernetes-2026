@@ -6,8 +6,9 @@
 Two distinct things happened and are easy to conflate:
 1. The **Ingress API** itself is stable/GA and has no planned removal from Kubernetes.
 2. The **ingress-nginx controller project** (one specific implementation) was retired by
-   Kubernetes SIG Network on March 24, 2026 — no further releases, bugfixes, or security patches.
-   Existing deployments keep working but are now unmaintained.
+   Kubernetes SIG Network and the Security Response Committee in March 2026 — no further
+   releases, bugfixes, or security patches. Existing deployments keep working but are now
+   unmaintained.
 
 Gateway API is the project's official successor direction for traffic routing generally, independent
 of the ingress-nginx retirement.
@@ -26,4 +27,5 @@ of the ingress-nginx retirement.
 ## References
 - https://kubernetes.io/docs/concepts/services-networking/ingress/
 - https://kubernetes.io/docs/concepts/services-networking/gateway/
-- https://kubernetes.io/blog/2026/04/22/kubernetes-v1-36-release/ (retirement confirmation)
+- https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/ (retirement announcement — best-effort maintenance ends March 2026)
+- https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/ (Steering + Security Response Committee statement)
