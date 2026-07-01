@@ -1,5 +1,8 @@
 # Kubernetes in 2026 — repo alignment notes
 
+Published post: https://bigelow.github.io/posts/kubernetes-2026/ — this file is
+the claims-alignment source that post was checked against.
+
 The original blog draft is not stored in this repo. This file holds the
 **corrected claim language** the published post must use, so the post and the
 repo can't drift apart. If the post says something this file doesn't support,

@@ -1,5 +1,7 @@
 # kubernetes-2026
 
+Companion essay: https://bigelow.github.io/posts/kubernetes-2026/
+
 A Kubernetes reference architecture, current as of mid-2026 (Kubernetes v1.36).
 Built as a personal reference — every decision is documented as an ADR with its
 rationale, and every example manifest is grouped by the platform concern it addresses.
