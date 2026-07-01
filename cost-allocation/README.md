@@ -4,10 +4,11 @@ ADR-0009. Two pieces: label discipline enforced at admission time, and a
 scheduled export job that joins Kubernetes resource metrics to your billing
 data by those labels.
 
-- `mutatingadmissionpolicy-cost-label.yaml` — intended to auto-inject a
-  `cost-center` label on new namespaces if one isn't set, so nothing lands
-  unallocated. The CEL expression is illustrative — validate it server-side
-  against a v1.36+ API server before relying on it.
+- `mutatingadmissionpolicy-cost-label.yaml` — auto-injects a `cost-center`
+  label on new namespaces if one isn't set, so nothing lands unallocated.
+  **Verified against v1.36** (kindest/node v1.36.1, 2026-07-01) via
+  server-side dry-run and live admission testing, including that existing
+  labels are preserved.
 - `cost-export-cronjob.yaml` — scheduled job shape for exporting
   usage-by-namespace to wherever your cost data lives.
 

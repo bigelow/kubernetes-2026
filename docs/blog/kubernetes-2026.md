@@ -23,17 +23,21 @@ Corrected:
 
 ## "What's Inside" — accurate per-folder claims
 
-- **security-policy** — CEL admission policies. The image-registry validating
-  policy covers containers, initContainers, and ephemeralContainers. The
-  resource-defaults mutating policy is illustrative (containers +
-  initContainers) and requires server-side dry-run validation on v1.36+
-  before production use.
+- **security-policy** — CEL admission policies, **verified against v1.36**
+  (kindest/node v1.36.1, server-side dry-run + live admission testing). The
+  image-registry validating policy rejects unapproved images on containers and
+  initContainers (and any ephemeralContainers already on the Pod object);
+  ephemeral containers injected later via the `pods/ephemeralcontainers`
+  subresource are not gated at admission, and CI-side `validate.py` checks
+  them instead. The resource-defaults mutating policy (containers +
+  initContainers) injects defaults, confirmed live.
 - **observability-telemetry** — in-cluster OTel Collector pipeline reference;
   `local-dev/` is a **runnable** Grafana Alloy + Tempo/Loki/Prometheus/Grafana
   stack via `docker compose up`. Not production.
-- **cost-allocation** — a MutatingAdmissionPolicy **intended to auto-label**
-  new namespaces with `cost-center` (illustrative, pending server-side
-  validation), plus a cost-export CronJob skeleton.
+- **cost-allocation** — a MutatingAdmissionPolicy that **auto-labels** new
+  namespaces with `cost-center` (**verified against v1.36**: kindest/node
+  v1.36.1, server-side dry-run + live admission testing, existing labels
+  preserved), plus a cost-export CronJob skeleton.
 - **workloads** — the StatefulSet is the shape an operator would manage; no
   operator or CRD is included.
 - **multi-tenancy** — the namespace-per-tenant tier is implemented; the
