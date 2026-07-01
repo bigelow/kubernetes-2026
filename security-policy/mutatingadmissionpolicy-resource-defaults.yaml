@@ -2,10 +2,11 @@
 # them. GA in v1.36. This is a backstop — scripts/validate.py enforces the
 # same rule at CI time; this catches anything that slips past CI.
 #
-# NOTE: the ApplyConfiguration CEL expression below is illustrative of the
-# intended behavior. MutatingAdmissionPolicy's CEL surface for nested list
-# mutation is easy to get subtly wrong — validate against a real v1.36+
-# API server (`kubectl apply --dry-run=server`) before trusting this as-is.
+# VERIFIED 2026-07-01 against kindest/node v1.36.1: server-side dry-run accepts
+# this policy, and live admission testing confirmed it injects defaults into a
+# container with no resources field (exercising the has(c.resources) guard),
+# defaults a missing-resources initContainer, and leaves already-specified
+# container resources untouched.
 # Scope: defaults regular containers and initContainers. Ephemeral containers
 # are intentionally NOT mutated here (they're added post-creation via the
 # pods/ephemeralcontainers subresource and don't support resource mutation
@@ -15,6 +16,9 @@ kind: MutatingAdmissionPolicy
 metadata:
   name: default-resource-requests
 spec:
+  # Required field (GA v1): inject defaults once; no need to re-run this
+  # mutation after other admission plugins act on the object.
+  reinvocationPolicy: Never
   matchConstraints:
     resourceRules:
       - apiGroups: [""]
