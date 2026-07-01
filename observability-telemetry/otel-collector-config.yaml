@@ -1,0 +1,62 @@
+# OTel Collector pipeline: OTLP in, PII redaction, fan-out to Tempo/Loki/Prometheus.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: platform-observability
+data:
+  collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch: {}
+
+      # Strip common PII patterns (emails, bearer tokens) from span/log
+      # attributes before export. Attribute keys/regexes below are a starting
+      # set, not exhaustive — extend for your own data shape.
+      redaction:
+        allow_all_keys: true
+        blocked_values:
+          - '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'   # emails
+          - 'Bearer [A-Za-z0-9\-._~+/]+=*'                      # bearer tokens
+        summary: debug
+
+      resource:
+        attributes:
+          - key: deployment.environment
+            value: ${env:DEPLOY_ENV}
+            action: upsert
+
+    exporters:
+      otlp/tempo:
+        endpoint: tempo.platform-observability.svc:4317
+        tls:
+          insecure: true
+      # Loki ingests OTLP natively at /otlp — the standalone `loki` exporter was
+      # removed from opentelemetry-collector-contrib (deprecated 2024), so push
+      # logs via OTLP/HTTP instead.
+      otlphttp/loki:
+        endpoint: http://loki.platform-observability.svc:3100/otlp
+      prometheusremotewrite:
+        endpoint: http://prometheus.platform-observability.svc:9090/api/v1/write
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [redaction, resource, batch]
+          exporters: [otlp/tempo]
+        logs:
+          receivers: [otlp]
+          processors: [redaction, resource, batch]
+          exporters: [otlphttp/loki]
+        metrics:
+          receivers: [otlp]
+          processors: [redaction, resource, batch]
+          exporters: [prometheusremotewrite]

@@ -1,0 +1,69 @@
+# ADR-0004: Stateful workloads run as StatefulSets, sized modestly, with an operator
+# owning backup/replication logic in real deployments (operator CRD not shown here —
+# this illustrates the StatefulSet shape it would manage).
+# Headless Service backing the StatefulSet's stable network identity. Required
+# for `serviceName: example-db` below — pods get DNS as
+# example-db-<ordinal>.example-db.team-payments.svc.
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-db
+  namespace: team-payments
+  labels:
+    app: example-db
+spec:
+  clusterIP: None          # headless
+  selector:
+    app: example-db
+  ports:
+    - name: db
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: example-db
+  namespace: team-payments
+spec:
+  serviceName: example-db
+  replicas: 3
+  selector:
+    matchLabels:
+      app: example-db
+  template:
+    metadata:
+      labels:
+        app: example-db
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000          # let the non-root user own the mounted PVC
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: db
+          image: example-db:1.0
+          resources:              # ADR-0009: requests/limits are mandatory
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1"
+              memory: "2Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/db
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

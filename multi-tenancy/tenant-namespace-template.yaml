@@ -1,0 +1,78 @@
+# ADR-0005: namespace-per-tenant default tier.
+# Duplicate this template per tenant, replacing `team-payments`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-payments
+  labels:
+    tenant: team-payments
+    tier: namespace-isolated       # vs "vcluster-isolated" for the hard tier
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  namespace: team-payments
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    pods: "50"
+---
+# Default-deny in BOTH directions, then re-allow the minimum: same-tenant
+# east-west traffic and DNS. With Egress omitted, a compromised pod could
+# exfiltrate freely to any destination — so the deny must cover egress too.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-cross-tenant
+  namespace: team-payments
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              tenant: team-payments   # only allow traffic from same tenant by default
+  egress:
+    # DNS resolution (CoreDNS/kube-dns lives in kube-system). Without this,
+    # egress default-deny would break name resolution for every pod.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Same-tenant east-west traffic only; cross-tenant and internet egress
+    # stay denied by default.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              tenant: team-payments
+---
+# RBAC: tenant team gets access scoped to their own namespace only —
+# the third leg of "RBAC + ResourceQuota + NetworkPolicy" from ADR-0005.
+# Uses the built-in `edit` ClusterRole for a familiar starting point.
+# HARDENING NOTE: `edit` is broad — it lets the tenant read Secrets and mount
+# any ServiceAccount in the namespace (a privilege-escalation path). For real
+# multi-tenant isolation, replace this with a curated namespaced Role that
+# grants only the verbs/resources the tenant actually needs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-team-edit
+  namespace: team-payments
+subjects:
+  - kind: Group
+    name: team-payments-owners   # maps to your IdP group/claim for this tenant
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: edit
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,85 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+# Least privilege: these jobs only read the checked-out source.
+permissions:
+  contents: read
+
+jobs:
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - run: python3 scripts/test_validate.py   # self-check the validator first
+      - run: python scripts/validate.py
+
+  schema-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kubeconform
+        env:
+          # Pin to a specific release — never releases/latest (non-reproducible,
+          # and unverified code run on the runner).
+          KUBECONFORM_VERSION: v0.6.7
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          cd "$workdir"
+          base="https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}"
+          curl -fsSL -O "${base}/kubeconform-linux-amd64.tar.gz"
+          curl -fsSL -O "${base}/CHECKSUMS"
+          # Verify the downloaded tarball against the release's published checksums
+          # before extracting/executing anything.
+          sha256sum --check --ignore-missing CHECKSUMS
+          tar xzf kubeconform-linux-amd64.tar.gz kubeconform
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 kubeconform "$HOME/.local/bin/kubeconform"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Validate against Kubernetes + CRD schemas
+        # -ignore-missing-schemas: MutatingAdmissionPolicy only went GA in v1.36
+        # (April 2026). Upstream schema catalogs (both kubeconform's default
+        # and the community CRDs-catalog) may not have caught up yet — this
+        # flag means "warn, don't fail" for resource kinds no catalog knows
+        # about, rather than silently skipping validation or hard-failing on
+        # a catalog lag that has nothing to do with our YAML being wrong.
+        # Gateway API kinds (Gateway, HTTPRoute) ARE covered by the
+        # datreeio/CRDs-catalog schema-location below.
+        # Scope: Kubernetes manifests from the platform folders only — the
+        # same folder set scripts/validate.py walks. Non-Kubernetes YAML
+        # (this workflow file, Compose files, local-dev backend configs for
+        # Alloy/Tempo/Loki/Prometheus/Grafana) is excluded on purpose.
+        run: |
+          find traffic-management security-policy observability-telemetry \
+               ai-scheduling cost-allocation workloads multi-tenancy \
+            \( -name '*.yaml' -o -name '*.yml' \) \
+            ! -path 'observability-telemetry/local-dev/*' \
+            ! -name 'compose.yml' ! -name 'compose.yaml' \
+            ! -name 'docker-compose.yml' ! -name 'docker-compose.yaml' \
+            -print \
+            | xargs kubeconform \
+                -strict \
+                -kubernetes-version 1.36.0 \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+                -ignore-missing-schemas \
+                -summary
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive terraform/
+      - name: terraform validate (eks module)
+        working-directory: terraform/modules/eks
+        run: |
+          terraform init -backend=false
+          terraform validate

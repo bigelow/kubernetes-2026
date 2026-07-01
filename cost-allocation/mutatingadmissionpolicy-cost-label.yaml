@@ -1,0 +1,43 @@
+# ADR-0007: CEL-based MutatingAdmissionPolicy (GA in v1.36) instead of a webhook server.
+# Example: intended to auto-inject a required cost-allocation label if missing.
+#
+# NOTE: illustrative — validate against a real v1.36+ API server
+# (`kubectl apply --dry-run=server`) before production use. Hyphenated label
+# keys can't use CEL dotted access (labels.cost-center parses as a
+# subtraction), so all access below is bracket/`in`-based. ApplyConfiguration
+# merges via server-side-apply semantics, so setting only the cost-center key
+# preserves other existing labels.
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: inject-cost-label
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["namespaces"]
+  mutations:
+    - patchType: "ApplyConfiguration"
+      applyConfiguration:
+        expression: >
+          Object{
+            metadata: Object.metadata{
+              labels: {
+                "cost-center":
+                  (has(object.metadata.labels) && "cost-center" in object.metadata.labels)
+                    ? object.metadata.labels["cost-center"]
+                    : "unassigned"
+              }
+            }
+          }
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: inject-cost-label-binding
+spec:
+  policyName: inject-cost-label
+  matchResources:
+    namespaceSelector: {}

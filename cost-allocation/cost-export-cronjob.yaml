@@ -1,0 +1,79 @@
+# ADR-0009: scheduled cost/usage export, joined by the cost-center label
+# injected via mutatingadmissionpolicy-cost-label.yaml.
+#
+# Skeleton only — swap the image/command for OpenCost, Kubecost, or a
+# custom exporter that reads the metrics API and writes to your billing store.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cost-exporter
+  namespace: platform-finops
+---
+# Minimal, least-privilege read access so the exporter can join usage to the
+# cost-center labels. This is namespace-scoped; a real cluster-wide cost
+# exporter would use a ClusterRole to read pods/nodes and metrics.k8s.io across
+# all namespaces — start here and widen only as needed.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cost-exporter
+  namespace: platform-finops
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cost-exporter
+  namespace: platform-finops
+subjects:
+  - kind: ServiceAccount
+    name: cost-exporter
+    namespace: platform-finops
+roleRef:
+  kind: Role
+  name: cost-exporter
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cost-usage-export
+  namespace: platform-finops
+spec:
+  schedule: "0 * * * *"        # hourly
+  concurrencyPolicy: Forbid    # never overlap runs — a slow export shouldn't stack
+  startingDeadlineSeconds: 300  # skip (don't backfill) a run missed by >5m
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: cost-exporter
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: exporter
+              image: cost-exporter:1.0   # placeholder — replace with OpenCost/Kubecost or a custom image
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "250m"
+                  memory: "512Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: EXPORT_DESTINATION
+                  value: "s3://example-finops-bucket/usage/"
+          restartPolicy: OnFailure

@@ -1,0 +1,30 @@
+# ADR-0003: weighted traffic split for canary releases — the pattern Ingress
+# handled only through controller-specific annotations. Gateway API makes it
+# a first-class, portable field.
+#
+# This is the single owner of (api.example.internal, /payments); the basic
+# route in gateway-httproute.yaml serves the default path only, so the two
+# never collide on the same hostname + path prefix.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: payments-canary
+  namespace: team-payments
+spec:
+  parentRefs:
+    - name: primary-gateway
+      namespace: platform-ingress
+  hostnames:
+    - "api.example.internal"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /payments
+      backendRefs:
+        - name: payments-svc-stable
+          port: 8080
+          weight: 90
+        - name: payments-svc-canary
+          port: 8080
+          weight: 10

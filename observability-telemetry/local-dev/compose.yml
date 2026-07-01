@@ -1,0 +1,78 @@
+# Local emulation of the observability backend — for iterating on telemetry
+# pipeline config without a cluster. Not a production topology: single
+# instance of everything, no auth, no persistence guarantees beyond basic
+# local volumes.
+#
+# The local collector is Grafana Alloy (config.alloy, checked in — no
+# extraction or generation steps needed). The in-cluster example remains an
+# OpenTelemetry Collector ConfigMap (../otel-collector-config.yaml); the two
+# paths are intentionally separate. See ../README.md.
+#
+# Run: docker compose up
+
+services:
+  alloy:
+    image: grafana/alloy:latest
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+    ports:
+      - "12345:12345"   # Alloy UI / diagnostics
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+
+  tempo:
+    image: grafana/tempo:latest
+    command:
+      - -config.file=/etc/tempo.yaml
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+    ports:
+      - "3200:3200"     # Tempo HTTP API (Grafana datasource)
+      # OTLP gRPC (4317) stays internal — Alloy reaches it as tempo:4317
+      # on the Compose network; the host-facing OTLP ports belong to Alloy.
+
+  loki:
+    image: grafana/loki:latest
+    command:
+      - -config.file=/etc/loki.yaml
+    volumes:
+      - ./loki.yaml:/etc/loki.yaml:ro
+    ports:
+      - "3100:3100"
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+
+volumes:
+  alloy-data:

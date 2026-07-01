@@ -1,0 +1,98 @@
+// Local telemetry pipeline for the docker compose dev loop.
+// OTLP in -> redaction (traces/logs) -> batch -> Tempo / Loki / Prometheus.
+//
+// Redaction/sanitization is applied to traces and logs; metrics receive
+// batching only. This mirrors the intent of the in-cluster OTel Collector
+// config (../otel-collector-config.yaml) but is written for Alloy — do not
+// copy Collector YAML in here.
+//
+// Validate after edits:
+//   docker run --rm -v "$PWD/config.alloy:/etc/alloy/config.alloy:ro" \
+//     grafana/alloy:latest validate /etc/alloy/config.alloy
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces  = [otelcol.processor.transform.redact.input]
+    logs    = [otelcol.processor.transform.redact.input]
+    metrics = [otelcol.processor.batch.default.input]
+  }
+}
+
+// Redact common PII patterns (emails, bearer tokens) from span/log attribute
+// values before export. A representative starting set, not exhaustive —
+// extend for your own data shape.
+otelcol.processor.transform "redact" {
+  error_mode = "ignore"
+
+  trace_statements {
+    context = "span"
+    statements = [
+      `replace_all_patterns(attributes, "value", "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")`,
+      `replace_all_patterns(attributes, "value", "Bearer [A-Za-z0-9\\-._~+/]+=*", "[REDACTED_TOKEN]")`,
+    ]
+  }
+
+  log_statements {
+    context = "log"
+    statements = [
+      `replace_all_patterns(attributes, "value", "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")`,
+      `replace_all_patterns(attributes, "value", "Bearer [A-Za-z0-9\\-._~+/]+=*", "[REDACTED_TOKEN]")`,
+    ]
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+    logs   = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces  = [otelcol.exporter.otlp.tempo.input]
+    logs    = [otelcol.exporter.loki.default.input]
+    metrics = [otelcol.exporter.prometheus.default.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+
+    tls {
+      insecure = true
+    }
+  }
+}
+
+otelcol.exporter.loki "default" {
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+otelcol.exporter.prometheus "default" {
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}

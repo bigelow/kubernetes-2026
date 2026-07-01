@@ -1,0 +1,12 @@
+# Local Prometheus for the Alloy dev loop. Receives metrics via remote_write
+# from Alloy (Prometheus itself is started with
+# --web.enable-remote-write-receiver in compose.yml).
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Self-scrape so the instance isn't empty; Alloy pushes app metrics in
+  # via the remote-write receiver, not via scraping.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

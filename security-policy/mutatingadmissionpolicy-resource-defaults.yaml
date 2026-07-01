@@ -1,0 +1,65 @@
+# ADR-0007 + ADR-0009: inject default requests/limits when a container omits
+# them. GA in v1.36. This is a backstop — scripts/validate.py enforces the
+# same rule at CI time; this catches anything that slips past CI.
+#
+# NOTE: the ApplyConfiguration CEL expression below is illustrative of the
+# intended behavior. MutatingAdmissionPolicy's CEL surface for nested list
+# mutation is easy to get subtly wrong — validate against a real v1.36+
+# API server (`kubectl apply --dry-run=server`) before trusting this as-is.
+# Scope: defaults regular containers and initContainers. Ephemeral containers
+# are intentionally NOT mutated here (they're added post-creation via the
+# pods/ephemeralcontainers subresource and don't support resource mutation
+# the same way); CI-side validation in scripts/validate.py still flags them.
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: default-resource-requests
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+  mutations:
+    - patchType: "ApplyConfiguration"
+      applyConfiguration:
+        expression: >
+          Object{
+            spec: Object.spec{
+              containers: object.spec.containers.map(c,
+                (has(c.resources) && has(c.resources.requests) && has(c.resources.limits)) ? c :
+                Object.spec.containers{
+                  name: c.name,
+                  resources: Object.spec.containers.resources{
+                    requests: (has(c.resources) && has(c.resources.requests)) ?
+                      c.resources.requests : {"cpu": "100m", "memory": "128Mi"},
+                    limits: (has(c.resources) && has(c.resources.limits)) ?
+                      c.resources.limits : {"cpu": "500m", "memory": "512Mi"}
+                  }
+                }
+              ),
+              ?initContainers: !has(object.spec.initContainers) ? optional.none() :
+                optional.of(object.spec.initContainers.map(c,
+                  (has(c.resources) && has(c.resources.requests) && has(c.resources.limits)) ? c :
+                  Object.spec.initContainers{
+                    name: c.name,
+                    resources: Object.spec.initContainers.resources{
+                      requests: (has(c.resources) && has(c.resources.requests)) ?
+                        c.resources.requests : {"cpu": "100m", "memory": "128Mi"},
+                      limits: (has(c.resources) && has(c.resources.limits)) ?
+                        c.resources.limits : {"cpu": "500m", "memory": "512Mi"}
+                    }
+                  }
+                ))
+            }
+          }
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: default-resource-requests-binding
+spec:
+  policyName: default-resource-requests
+  matchResources:
+    namespaceSelector: {}
