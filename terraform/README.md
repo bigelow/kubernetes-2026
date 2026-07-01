@@ -18,3 +18,8 @@ see their READMEs. `environments/example-prod` wires the EKS module together for
 a single environment; it's a template, not a ready-to-apply stack (you need a
 real VPC/subnets and your own remote backend for state — a commented S3 backend
 stub is included in `main.tf`).
+
+Provider lock files (`.terraform.lock.hcl`) are committed with multi-platform
+hashes (`linux_amd64` for CI, `darwin_arm64` for local dev). Regenerate with
+`terraform providers lock -platform=linux_amd64 -platform=darwin_arm64` when
+bumping providers.

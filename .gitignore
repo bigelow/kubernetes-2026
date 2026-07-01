@@ -5,9 +5,6 @@
 crash.log
 *.tfvars
 !example.tfvars
-# Provider lock files are regenerated per-platform by `terraform init` (incl. in
-# CI); not committed to avoid single-platform hash mismatches across dev/CI.
-.terraform.lock.hcl
 
 # Local Claude Code session config
 .claude/
