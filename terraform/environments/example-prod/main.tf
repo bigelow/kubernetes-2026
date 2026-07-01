@@ -38,7 +38,7 @@ provider "aws" {
     tags = {
       ManagedBy   = "terraform"
       Environment = var.cluster_name
-      Project     = "k8s-reference-architecture"
+      Project     = "kubernetes-2026"
     }
   }
 }

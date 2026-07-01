@@ -1,7 +1,7 @@
-# Kubernetes Reference Architecture (2026)
+# kubernetes-2026
 
-A reference architecture for running production Kubernetes, current as of mid-2026 (Kubernetes v1.36).
-Built as a personal reference and portfolio piece — every decision is documented as an ADR with its
+A Kubernetes reference architecture, current as of mid-2026 (Kubernetes v1.36).
+Built as a personal reference — every decision is documented as an ADR with its
 rationale, and every example manifest is grouped by the platform concern it addresses.
 
 ## Why this exists
