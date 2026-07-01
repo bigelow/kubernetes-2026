@@ -16,9 +16,11 @@ kind: MutatingAdmissionPolicy
 metadata:
   name: default-resource-requests
 spec:
-  # Required field (GA v1): inject defaults once; no need to re-run this
-  # mutation after other admission plugins act on the object.
-  reinvocationPolicy: Never
+  # IfNeeded: re-run if a later mutator (e.g. a sidecar injector)
+  # modifies the pod, so injected containers also receive defaults.
+  # Safe to re-run — the expression is idempotent (containers with
+  # resources set are left unchanged).
+  reinvocationPolicy: IfNeeded
   matchConstraints:
     resourceRules:
       - apiGroups: [""]

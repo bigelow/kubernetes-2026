@@ -14,7 +14,8 @@ kind: MutatingAdmissionPolicy
 metadata:
   name: inject-cost-label
 spec:
-  # Required field (GA v1): inject the label once; no re-invocation needed.
+  # Never: single mutation on Namespace CREATE, no competing mutators
+  # expected, and the expression is idempotent regardless.
   reinvocationPolicy: Never
   matchConstraints:
     resourceRules:

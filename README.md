@@ -28,7 +28,7 @@ multi-tenancy/                Namespace-per-tenant template (ADR-0005)
 terraform/modules/            IaC for managed control planes (EKS shown in full; GKE/AKS stubbed)
 terraform/environments/       Example environment wiring the modules together
 scripts/validate.py           Python validation script (used in CI)
-.github/workflows/            CI: YAML validation + Terraform fmt/validate
+.github/workflows/            CI: YAML validation + Terraform fmt/validate + IaC scan (tflint/trivy)
 ```
 
 ## Decisions covered (see `docs/adr/`)
@@ -64,6 +64,14 @@ run with `-ignore-missing-schemas`: `MutatingAdmissionPolicy` only went GA in v1
 and upstream schema catalogs may not have caught up yet — that flag means "warn on unknown kinds,"
 not "silently skip validation." If a resource kind's schema does exist and the manifest is wrong
 against it, the job still fails.
+
+Static IaC analysis runs in the `iac-scan` CI job: **tflint** (with the pinned AWS ruleset) over the
+Terraform, and **trivy config** over both the Terraform and the Kubernetes manifests. The job fails on
+any new finding. Accepted exceptions are carried explicitly — inline `tflint-ignore` annotations for
+Terraform and a repo-root `.trivyignore` for trivy — and **every suppression requires a written
+rationale** next to it (a deliberate reference-repo choice, a false positive, or an over-strict rule),
+never a blanket rule-disable. Run the same scanners locally with `make lint` (skipped gracefully if the
+tools aren't installed; CI is the authoritative gate).
 
 ## Language choice
 

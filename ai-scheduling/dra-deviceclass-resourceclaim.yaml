@@ -28,6 +28,13 @@ metadata:
   name: inference-worker
   namespace: team-ml
 spec:
+  # Non-root, no privilege escalation, all capabilities dropped, seccomp on.
+  # DRA injects the GPU device without needing extra pod privileges.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
   containers:
     - name: worker
       image: inference-worker:1.0
@@ -40,6 +47,10 @@ spec:
           memory: "16Gi"
         claims:
           - name: gpu
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
   resourceClaims:
     - name: gpu
       resourceClaimTemplateName: gpu-slice-claim
