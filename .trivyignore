@@ -1,0 +1,43 @@
+# trivy config suppressions. Every entry is a DELIBERATE, reviewed choice — not
+# a way to quiet noise. Each ID below has a written rationale. Suppressions are
+# global-by-ID (plain .trivyignore format); the repo's workload set is small and
+# each affected file is reviewed. Revisit when workloads are added.
+
+# --- Terraform: EKS reference reachability (the documented b2 footgun) --------
+# AWS-0040: EKS public endpoint enabled. Deliberate — this is a reference people
+# spin up to learn from; fully-private would defeat that. Gated by
+# public_access_cidrs and loudly commented in the module.
+AWS-0040
+# AWS-0041: public_access_cidrs defaults to 0.0.0.0/0. Deliberate, documented
+# footgun so the cluster is reachable out of the box; restrict for real use.
+AWS-0041
+# AWS-0104: control-plane SG allows all egress. The EKS control plane needs
+# outbound access to AWS APIs and nodes; scoping this is environment-specific
+# and easy to get wrong. Illustrative module — tighten per network policy.
+AWS-0104
+
+# --- Kubernetes manifests -----------------------------------------------------
+# KSV-0111: tenant RoleBinding to the built-in `edit` ClusterRole. Documented
+# WONTFIX with an in-manifest hardening note (curated Role is the real fix).
+KSV-0111
+# KSV-01010: "ConfigMap with sensitive content" on the OTel Collector config.
+# FALSE POSITIVE — the flagged strings are PII-redaction regex patterns
+# (email/bearer-token matchers), not actual secrets.
+KSV-01010
+# KSV-0125: "restrict images to trusted registries." The infra components
+# (collector, illustrative workloads) intentionally reference upstream/example
+# images; the repo's own image-registry VAP governs real tenant workloads.
+KSV-0125
+# KSV-0014: read-only root filesystem. The StatefulSet DB and the ML inference
+# worker legitimately need a writable root FS (DB sockets/tmp; model scratch);
+# persistent data is on a PVC. Other workloads DO set readOnlyRootFilesystem.
+KSV-0014
+# KSV-0020 / KSV-0021: "runs with UID/GID <= 10000." Our workloads run as the
+# standard non-root 1000/1000; requiring >10000 is an over-strict preference,
+# not a real escalation path once runAsNonRoot + drop-ALL are in place.
+KSV-0020
+KSV-0021
+# KSV-0040: informational "resource quota usage" — fires on essentially every
+# namespaced object. ResourceQuota is demonstrated in the tenant template;
+# per-manifest quota annotations are out of scope for these examples.
+KSV-0040

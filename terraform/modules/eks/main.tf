@@ -48,8 +48,9 @@ resource "aws_eks_cluster" "this" {
     resources = ["secrets"]
   }
 
-  # Control plane audit/API logs — required for any real security posture.
-  enabled_cluster_log_types = ["api", "audit", "authenticator"]
+  # Control plane logging — all five types on for a complete audit trail
+  # (required for any real security posture).
+  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   tags = var.tags
 }
@@ -61,10 +62,12 @@ resource "aws_eks_cluster" "this" {
 # attaches automatically, so duplicating those rules here would be redundant
 # and drift-prone. Tighten egress if your network policy requires it.
 resource "aws_security_group" "cluster" {
-  name   = "${var.cluster_name}-eks-cluster-sg"
-  vpc_id = var.vpc_id
+  name        = "${var.cluster_name}-eks-cluster-sg"
+  description = "EKS control-plane ENI security group for ${var.cluster_name} (egress-only)"
+  vpc_id      = var.vpc_id
 
   egress {
+    description = "Allow all outbound so the control plane can reach AWS APIs and nodes"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"

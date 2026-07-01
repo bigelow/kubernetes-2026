@@ -83,3 +83,52 @@ jobs:
         run: |
           terraform init -backend=false
           terraform validate
+
+  iac-scan:
+    # Static IaC analysis. FAILS on any finding not carried as an accepted
+    # exception (inline tflint annotations / repo-root .trivyignore, each with a
+    # written rationale). Tools pinned + checksum-verified like kubeconform above.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tflint
+        env:
+          TFLINT_VERSION: v0.63.1
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"; cd "$workdir"
+          base="https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}"
+          curl -fsSL -O "${base}/tflint_linux_amd64.zip"
+          curl -fsSL -O "${base}/checksums.txt"
+          sha256sum --check --ignore-missing checksums.txt
+          unzip -o tflint_linux_amd64.zip
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 tflint "$HOME/.local/bin/tflint"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install trivy
+        env:
+          TRIVY_VERSION: "0.72.0"
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"; cd "$workdir"
+          base="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+          curl -fsSL -O "${base}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSL -O "${base}/trivy_${TRIVY_VERSION}_checksums.txt"
+          sha256sum --check --ignore-missing "trivy_${TRIVY_VERSION}_checksums.txt"
+          tar xzf "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 trivy "$HOME/.local/bin/trivy"
+
+      - name: tflint
+        env:
+          # Avoids GitHub API rate limits when tflint fetches the pinned aws plugin.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tflint --init
+          tflint --chdir=terraform --recursive
+
+      - name: trivy config
+        # --exit-code 1: any finding not in .trivyignore fails the job.
+        run: trivy config --exit-code 1 --skip-dirs '**/.terraform' .
