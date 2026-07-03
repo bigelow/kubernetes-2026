@@ -1,0 +1,63 @@
+# grafana/grafana 10.5.15 (Grafana 12.3.x).
+# Local-only credentials — never reuse outside k3d.
+adminUser: admin
+adminPassword: k2026-local
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 192Mi
+  limits:
+    memory: 512Mi
+
+persistence:
+  enabled: false   # everything is provisioned as code; nothing to persist
+
+testFramework:
+  enabled: false
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - grafana.localhost
+
+# Datasources provisioned via configmap (chart renders these values into one).
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Mimir
+        uid: mimir
+        type: prometheus
+        url: http://mimir-query-frontend.platform-observability.svc:8080/prometheus
+        isDefault: true
+        jsonData:
+          timeInterval: 10s   # matches OTEL_METRIC_EXPORT_INTERVAL
+      - name: Loki
+        uid: loki
+        type: loki
+        url: http://loki.platform-observability.svc:3100
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        url: http://tempo.platform-observability.svc:3200
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-5m"
+            spanEndTimeShift: "5m"
+
+# Dashboards arrive via the sidecar from any ConfigMap labeled
+# grafana_dashboard=1 (created from local/dashboards/ by local/up.sh).
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    searchNamespace: platform-observability
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi

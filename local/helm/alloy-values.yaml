@@ -1,0 +1,81 @@
+# grafana/alloy 1.10.0 (Alloy v1.17.x) — OTLP router between the reference
+# OTel collector and the storage backends. Mirrors the shape of
+# observability-telemetry/local-dev/config.alloy (the docker-compose variant),
+# adapted for in-cluster service DNS and Mimir instead of Prometheus.
+# PII redaction already happened upstream in the reference collector, so this
+# hop only batches and routes.
+controller:
+  type: deployment
+  replicas: 1
+
+alloy:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  extraPorts:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+  configMap:
+    content: |-
+      logging {
+        level  = "info"
+        format = "logfmt"
+      }
+
+      otelcol.receiver.otlp "default" {
+        grpc {
+          endpoint = "0.0.0.0:4317"
+        }
+        http {
+          endpoint = "0.0.0.0:4318"
+        }
+        output {
+          traces  = [otelcol.processor.batch.default.input]
+          logs    = [otelcol.processor.batch.default.input]
+          metrics = [otelcol.processor.batch.default.input]
+        }
+      }
+
+      otelcol.processor.batch "default" {
+        output {
+          traces  = [otelcol.exporter.otlp.tempo.input]
+          logs    = [otelcol.exporter.otlphttp.loki.input]
+          metrics = [otelcol.exporter.prometheus.default.input]
+        }
+      }
+
+      otelcol.exporter.otlp "tempo" {
+        client {
+          endpoint = "tempo.platform-observability.svc:4317"
+          tls {
+            insecure = true
+          }
+        }
+      }
+
+      // Loki ingests OTLP natively at /otlp (matches the note in the
+      // reference collector config).
+      otelcol.exporter.otlphttp "loki" {
+        client {
+          endpoint = "http://loki.platform-observability.svc:3100/otlp"
+        }
+      }
+
+      otelcol.exporter.prometheus "default" {
+        forward_to = [prometheus.remote_write.mimir.receiver]
+      }
+
+      prometheus.remote_write "mimir" {
+        endpoint {
+          url = "http://mimir-distributor.platform-observability.svc:8080/api/v1/push"
+        }
+      }

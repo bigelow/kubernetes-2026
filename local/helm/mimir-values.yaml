@@ -1,0 +1,99 @@
+# grafana/mimir-distributed 6.1.0 (Mimir 3.1.x).
+# NOTE: the official chart has no true monolithic (-target=all) mode, so this
+# is the smallest sane distributed footprint instead: one replica of each
+# required component, no zone awareness, chart-bundled MinIO as object store,
+# everything optional disabled. See local/README.md.
+mimir:
+  structuredConfig:
+    multitenancy_enabled: false
+    # Classic push architecture. The chart defaults to Mimir 3.x
+    # ingest-storage (a Kafka broker between distributor and ingester) —
+    # one more stateful service than a laptop needs.
+    ingest_storage:
+      enabled: false
+    ingester:
+      push_grpc_method_enabled: true
+      ring:
+        replication_factor: 1
+
+kafka:
+  enabled: false
+
+alertmanager:
+  enabled: false
+ruler:
+  enabled: false
+overrides_exporter:
+  enabled: false
+rollout_operator:
+  enabled: false
+gateway:
+  enabled: false
+
+distributor:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}
+ingester:
+  replicas: 1
+  zoneAwareReplication:
+    enabled: false
+  persistentVolume:
+    size: 2Gi
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {memory: 1536Mi}
+querier:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}
+query_frontend:
+  replicas: 1
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 512Mi}
+# The chart wires frontend/querier through the scheduler unconditionally, so
+# it can't be disabled; run it as small as possible.
+query_scheduler:
+  replicas: 1
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 256Mi}
+store_gateway:
+  replicas: 1
+  zoneAwareReplication:
+    enabled: false
+  persistentVolume:
+    size: 1Gi
+  resources:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 1Gi}
+compactor:
+  replicas: 1
+  persistentVolume:
+    size: 1Gi
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 512Mi}
+
+minio:
+  enabled: true
+  replicas: 1
+  mode: standalone
+  persistence:
+    size: 2Gi
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 512Mi}
+
+# memcached caches all default-off in this chart; left disabled.
+chunks-cache:
+  enabled: false
+index-cache:
+  enabled: false
+metadata-cache:
+  enabled: false
+results-cache:
+  enabled: false

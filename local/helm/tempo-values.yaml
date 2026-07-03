@@ -1,0 +1,19 @@
+# grafana/tempo 1.24.4 (Tempo 2.9.x) — the chart IS single-binary mode.
+tempo:
+  reportingEnabled: false
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+persistence:
+  enabled: false   # ephemeral trace storage is fine locally
