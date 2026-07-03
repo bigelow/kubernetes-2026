@@ -1,0 +1,15 @@
+# Toolchain for running the reference architecture on local k3s-in-Docker.
+# See local/README.md. Pinned so `mise install` is reproducible.
+
+[tools]
+k3d = "5.9.0"
+kubectl = "1.36.2"
+helm = "3.21.2"
+
+[tasks.local-up]
+description = "Create the k2026 k3d cluster and deploy everything (core manifests + observability spine)"
+run = "bash local/up.sh"
+
+[tasks.local-down]
+description = "Delete the k2026 k3d cluster"
+run = "k3d cluster delete k2026"

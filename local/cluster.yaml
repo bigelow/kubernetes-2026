@@ -1,0 +1,19 @@
+# k3d config for the local reference cluster. k3s pinned to v1.36.x to match
+# the repo's Kubernetes target (MutatingAdmissionPolicy is GA/v1 in 1.36).
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: k2026
+servers: 1
+agents: 2
+image: rancher/k3s:v1.36.2-k3s1
+ports:
+  # Host port 8080 -> the k3d loadbalancer -> Traefik :80 inside the cluster.
+  # Grafana and the demo app are exposed as *.localhost Ingress hosts on it.
+  - port: 8080:80
+    nodeFilters:
+      - loadbalancer
+options:
+  k3d:
+    wait: true
+    timeout: "300s"
