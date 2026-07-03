@@ -1,0 +1,11 @@
+# The reference manifests deploy into platform-observability but the repo has
+# no Namespace manifest for it — created here for local.
+# tier=platform-system matches the exemption in the image-registry
+# ValidatingAdmissionPolicyBinding (upstream grafana/otel images are not from
+# the approved internal registry).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-observability
+  labels:
+    tier: platform-system

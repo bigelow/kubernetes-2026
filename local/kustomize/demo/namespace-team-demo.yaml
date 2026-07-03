@@ -1,0 +1,76 @@
+# Tenant namespace for the demo app, following the reference template
+# (multi-tenancy/tenant-namespace-template.yaml: namespace + quota +
+# default-deny netpol). Deltas from the template, per its own "duplicate and
+# adapt per tenant" instruction:
+#   - no cost-center label on purpose: the reference MutatingAdmissionPolicy
+#     (cost-allocation/) must inject cost-center=unassigned at CREATE.
+#   - quota sized for a laptop, not the 20-CPU reference numbers.
+#   - egress additionally allows the OTel collector in platform-observability
+#     (a telemetry-emitting tenant needs this; the reference template's
+#     default-deny would silently drop OTLP export).
+#   - ingress additionally allows kube-system, so Traefik can route
+#     demo.localhost to the pod.
+#   - RoleBinding omitted (no tenant IdP group locally).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-demo
+  labels:
+    tenant: team-demo
+    tier: namespace-isolated
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  namespace: team-demo
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "4"
+    limits.memory: 4Gi
+    pods: "10"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-cross-tenant
+  namespace: team-demo
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              tenant: team-demo
+    # LOCAL: Traefik (kube-system) terminates demo.localhost and forwards here.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              tenant: team-demo
+    # LOCAL: OTLP export to the OTel collector.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: platform-observability
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 4318

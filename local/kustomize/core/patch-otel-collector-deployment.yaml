@@ -1,0 +1,17 @@
+# LOCAL deltas to the reference collector Deployment:
+#   - replicas 2 -> 1 (laptop)
+#   - DEPLOY_ENV prod -> local (stamped on telemetry as deployment.environment)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: platform-observability
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: otel-collector
+          env:
+            - name: DEPLOY_ENV
+              value: "local"

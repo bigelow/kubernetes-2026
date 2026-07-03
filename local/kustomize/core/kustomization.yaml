@@ -1,0 +1,37 @@
+# Core reference manifests adapted for local k3d.
+# Reference files are consumed as-is from their original locations (requires
+# `kubectl kustomize --load-restrictor LoadRestrictionsNone`, see local/up.sh);
+# every local delta is an explicit patch or extra resource in this directory.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # LOCAL: the repo defines no manifest for this namespace (the reference
+  # assumes it exists). tier=platform-system exempts it from the
+  # image-registry policy so upstream grafana/otel images can run.
+  - namespace-platform-observability.yaml
+  # Reference admission policies, unmodified.
+  - ../../../security-policy/validatingadmissionpolicy-image-registry.yaml
+  - ../../../security-policy/mutatingadmissionpolicy-resource-defaults.yaml
+  - ../../../cost-allocation/mutatingadmissionpolicy-cost-label.yaml
+  # Reference tenant template, unmodified (namespace + quota + netpol + RBAC).
+  - ../../../multi-tenancy/tenant-namespace-template.yaml
+  # Reference OTel collector, unmodified except the patches below.
+  - ../../../observability-telemetry/otel-collector-config.yaml
+  - ../../../observability-telemetry/otel-collector-deployment.yaml
+
+patches:
+  # LOCAL: 1 replica (laptop) and DEPLOY_ENV=local instead of prod.
+  - path: patch-otel-collector-deployment.yaml
+  # LOCAL: exporters point at Alloy instead of tempo/loki/prometheus
+  # directly — the local spine is demo-app -> collector -> Alloy -> backends.
+  - path: patch-otel-collector-config.yaml
+  # LOCAL BUGFIX (candidate for upstreaming): the reference expression denies
+  # pods whose containers carry atomic fields (capabilities.drop). See the
+  # patch file for the full analysis.
+  - path: patch-map-resource-defaults.yaml
+    target:
+      group: admissionregistration.k8s.io
+      version: v1
+      kind: MutatingAdmissionPolicy
+      name: default-resource-requests

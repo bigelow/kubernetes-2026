@@ -1,0 +1,10 @@
+# Local demo tenant: a small workload that emits traces/metrics/logs so the
+# observability spine has real telemetry. The namespace follows the reference
+# tenant template (multi-tenancy/tenant-namespace-template.yaml) pattern;
+# deltas from the template are commented in namespace-team-demo.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace-team-demo.yaml
+  - demo-app.yaml

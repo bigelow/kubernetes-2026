@@ -1,0 +1,6 @@
+# Pinned from a resolved install (pip freeze) on 2026-07-03.
+flask==3.1.3
+opentelemetry-distro==0.64b0
+opentelemetry-exporter-otlp-proto-http==1.43.0
+opentelemetry-instrumentation-flask==0.64b0
+structlog==26.1.0

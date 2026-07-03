@@ -1,0 +1,57 @@
+# LOCAL delta to the reference collector config: receivers and processors
+# (including PII redaction) are IDENTICAL to
+# observability-telemetry/otel-collector-config.yaml; only the exporters
+# change. The reference exports straight to tempo/loki/prometheus services;
+# locally all three signals go OTLP -> Alloy, which routes to
+# Tempo / Loki / Mimir (see local/helm/alloy-values.yaml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: platform-observability
+data:
+  collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch: {}
+
+      redaction:
+        allow_all_keys: true
+        blocked_values:
+          - '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'   # emails
+          - 'Bearer [A-Za-z0-9\-._~+/]+=*'                      # bearer tokens
+        summary: debug
+
+      resource:
+        attributes:
+          - key: deployment.environment
+            value: ${env:DEPLOY_ENV}
+            action: upsert
+
+    exporters:
+      otlp/alloy:
+        endpoint: alloy.platform-observability.svc:4317
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [redaction, resource, batch]
+          exporters: [otlp/alloy]
+        logs:
+          receivers: [otlp]
+          processors: [redaction, resource, batch]
+          exporters: [otlp/alloy]
+        metrics:
+          receivers: [otlp]
+          processors: [redaction, resource, batch]
+          exporters: [otlp/alloy]
