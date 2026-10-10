@@ -1,0 +1,85 @@
+# trivy config suppressions. Every entry is a DELIBERATE, reviewed choice — not
+# a way to quiet noise — and each carries its rationale in `statement`.
+# YAML form (instead of the plain .trivyignore list) so that an entry can be
+# scoped to a path: a rule that is a conscious exception for ONE file must not
+# become a repo-wide disable. Entries without `paths` are global by ID; the
+# repo's workload set is small and each affected file is reviewed. Revisit
+# when workloads are added.
+misconfigurations:
+  # --- Terraform: EKS reference reachability (the documented b2 footgun) ------
+  - id: AVD-AWS-0040
+    statement: >-
+      EKS public endpoint enabled. Deliberate — this is a reference people spin
+      up to learn from; fully-private would defeat that. Gated by
+      public_access_cidrs and loudly commented in the module.
+  - id: AVD-AWS-0041
+    statement: >-
+      public_access_cidrs defaults to 0.0.0.0/0. Deliberate, documented footgun
+      so the cluster is reachable out of the box; restrict for real use.
+  - id: AVD-AWS-0104
+    statement: >-
+      Control-plane SG allows all egress. The EKS control plane needs outbound
+      access to AWS APIs and nodes; scoping this is environment-specific and
+      easy to get wrong. Illustrative module — tighten per network policy.
+
+  # --- Kubernetes manifests ----------------------------------------------------
+  - id: AVD-KSV-0111
+    statement: >-
+      Tenant RoleBinding to the built-in `edit` ClusterRole. Documented WONTFIX
+      with an in-manifest hardening note (curated Role is the real fix).
+  - id: AVD-KSV-01010
+    statement: >-
+      "ConfigMap with sensitive content" on the OTel Collector config. FALSE
+      POSITIVE — the flagged strings are PII-redaction regex patterns
+      (email/bearer-token matchers), not actual secrets.
+  - id: AVD-KSV-0125
+    statement: >-
+      "Restrict images to trusted registries." The infra components (collector,
+      illustrative workloads) intentionally reference upstream/example images;
+      the repo's own image-registry VAP governs real tenant workloads.
+  - id: AVD-KSV-0014
+    statement: >-
+      Read-only root filesystem. The StatefulSet DB and the ML inference worker
+      legitimately need a writable root FS (DB sockets/tmp; model scratch);
+      persistent data is on a PVC. Other workloads DO set
+      readOnlyRootFilesystem.
+  - id: AVD-KSV-0020
+    statement: >-
+      "Runs with UID <= 10000." Our workloads run as the standard non-root
+      1000/1000; requiring >10000 is an over-strict preference, not a real
+      escalation path once runAsNonRoot + drop-ALL are in place.
+  - id: AVD-KSV-0021
+    statement: >-
+      "Runs with GID <= 10000." Same rationale as AVD-KSV-0020.
+  - id: AVD-KSV-0040
+    statement: >-
+      Informational "resource quota usage" — fires on essentially every
+      namespaced object. ResourceQuota is demonstrated in the tenant template;
+      per-manifest quota annotations are out of scope for these examples.
+
+  # --- local/ k3d stack ------------------------------------------------------
+  - id: AVD-DS-0026
+    paths:
+      - local/demo-app/Dockerfile
+    statement: >-
+      "Add HEALTHCHECK." Kubernetes/containerd ignore the Docker HEALTHCHECK
+      instruction; the demo-app Deployment's readinessProbe on /healthz is the
+      health check that actually runs. Adding one would only bloat the image.
+  # The demo container omits `resources` ON PURPOSE: the reference
+  # resource-defaults MutatingAdmissionPolicy must inject them or the pod
+  # cannot pass the tenant ResourceQuota — its scheduling is a live test of
+  # ADR-0007 (see local/README.md and the comment in the manifest). Scoped to
+  # that one file: requests/limits stay enforced everywhere else, and
+  # scripts/validate.py enforces them for the platform folders at CI time.
+  - id: AVD-KSV-0011
+    paths: [local/kustomize/demo/demo-app.yaml]
+    statement: Deliberate omission — resources are injected live by the reference MAP.
+  - id: AVD-KSV-0015
+    paths: [local/kustomize/demo/demo-app.yaml]
+    statement: Deliberate omission — resources are injected live by the reference MAP.
+  - id: AVD-KSV-0016
+    paths: [local/kustomize/demo/demo-app.yaml]
+    statement: Deliberate omission — resources are injected live by the reference MAP.
+  - id: AVD-KSV-0018
+    paths: [local/kustomize/demo/demo-app.yaml]
+    statement: Deliberate omission — resources are injected live by the reference MAP.

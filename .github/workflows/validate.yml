@@ -86,8 +86,9 @@ jobs:
 
   iac-scan:
     # Static IaC analysis. FAILS on any finding not carried as an accepted
-    # exception (inline tflint annotations / repo-root .trivyignore, each with a
-    # written rationale). Tools pinned + checksum-verified like kubeconform above.
+    # exception (inline tflint annotations / repo-root .trivyignore.yaml, each
+    # with a written rationale). Tools pinned + checksum-verified like
+    # kubeconform above.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -130,5 +131,7 @@ jobs:
           tflint --chdir=terraform --recursive
 
       - name: trivy config
-        # --exit-code 1: any finding not in .trivyignore fails the job.
-        run: trivy config --exit-code 1 --skip-dirs '**/.terraform' .
+        # --exit-code 1: any finding not in .trivyignore.yaml fails the job.
+        # --ignorefile: trivy only auto-loads the plain .trivyignore format;
+        # the YAML form (needed for path-scoped entries) must be named.
+        run: trivy config --exit-code 1 --ignorefile .trivyignore.yaml --skip-dirs '**/.terraform' .

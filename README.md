@@ -70,10 +70,15 @@ against it, the job still fails.
 Static IaC analysis runs in the `iac-scan` CI job: **tflint** (with the pinned AWS ruleset) over the
 Terraform, and **trivy config** over both the Terraform and the Kubernetes manifests. The job fails on
 any new finding. Accepted exceptions are carried explicitly — inline `tflint-ignore` annotations for
-Terraform and a repo-root `.trivyignore` for trivy — and **every suppression requires a written
+Terraform and a repo-root `.trivyignore.yaml` for trivy — and **every suppression requires a written
 rationale** next to it (a deliberate reference-repo choice, a false positive, or an over-strict rule),
-never a blanket rule-disable. Run the same scanners locally with `make lint` (skipped gracefully if the
-tools aren't installed; CI is the authoritative gate).
+never a blanket rule-disable. The ignore file is in trivy's YAML form so an exception can be scoped
+to a single path where it belongs (the `local/` demo app deliberately omits `resources` so the
+reference MutatingAdmissionPolicy injects them live; that is suppressed for that one file only, and
+`scripts/validate.py` still enforces requests/limits for the platform folders). trivy only
+auto-loads the plain `.trivyignore` format, so `make lint` and CI pass `--ignorefile` explicitly. Run
+the same scanners locally with `make lint` (skipped gracefully if the tools aren't installed; CI is
+the authoritative gate).
 
 ## Language choice
 

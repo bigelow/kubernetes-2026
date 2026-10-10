@@ -23,6 +23,11 @@ resources:
 patches:
   # LOCAL: 1 replica (laptop) and DEPLOY_ENV=local instead of prod.
   - path: patch-otel-collector-deployment.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: otel-collector
   # LOCAL: exporters point at Alloy instead of tempo/loki/prometheus
   # directly — the local spine is demo-app -> collector -> Alloy -> backends.
   - path: patch-otel-collector-config.yaml

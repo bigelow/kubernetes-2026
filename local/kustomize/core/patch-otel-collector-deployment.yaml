@@ -1,17 +1,16 @@
-# LOCAL deltas to the reference collector Deployment:
+# LOCAL deltas to the reference collector Deployment (JSON6902 ops, targeted
+# from kustomization.yaml):
 #   - replicas 2 -> 1 (laptop)
 #   - DEPLOY_ENV prod -> local (stamped on telemetry as deployment.environment)
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: otel-collector
-  namespace: platform-observability
-spec:
-  replicas: 1
-  template:
-    spec:
-      containers:
-        - name: otel-collector
-          env:
-            - name: DEPLOY_ENV
-              value: "local"
+# Written as a JSON6902 patch rather than a strategic-merge fragment on
+# purpose: a Deployment-shaped fragment gets scanned by `trivy config` as if
+# it were a whole Deployment (no securityContext, no resources, ...) and
+# produced 13 false positives against the reference it patches. An op list
+# has no apiVersion/kind and is not mistaken for a manifest. The env op is
+# index-based (DEPLOY_ENV is the first env entry in the reference).
+- op: replace
+  path: /spec/replicas
+  value: 1
+- op: replace
+  path: /spec/template/spec/containers/0/env/0/value
+  value: "local"

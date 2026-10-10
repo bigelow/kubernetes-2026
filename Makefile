@@ -14,7 +14,7 @@ lint:
 		tflint --init >/dev/null && tflint --chdir=terraform --recursive; \
 	else echo "tflint not installed — skipping (CI is the gate)"; fi
 	@if command -v trivy >/dev/null 2>&1; then \
-		trivy config --exit-code 1 --skip-dirs '**/.terraform' .; \
+		trivy config --exit-code 1 --ignorefile .trivyignore.yaml --skip-dirs '**/.terraform' .; \
 	else echo "trivy not installed — skipping (CI is the gate)"; fi
 
 fmt:
