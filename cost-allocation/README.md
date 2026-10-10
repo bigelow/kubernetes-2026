@@ -6,9 +6,9 @@ data by those labels.
 
 - `mutatingadmissionpolicy-cost-label.yaml` — auto-injects a `cost-center`
   label on new namespaces if one isn't set, so nothing lands unallocated.
-  **Verified against v1.36** (kindest/node v1.36.1, 2026-07-01) via
-  server-side dry-run and live admission testing, including that existing
-  labels are preserved.
+  **Verified against v1.37** (kindest/node v1.37.0, 2026-10-09; previously
+  v1.36.1, 2026-07-01) via server-side dry-run and live admission testing,
+  including that existing labels are preserved.
 - `cost-export-cronjob.yaml` — scheduled job shape for exporting
   usage-by-namespace to wherever your cost data lives.
 

@@ -1,7 +1,8 @@
 # ADR-0007: CEL-based MutatingAdmissionPolicy (GA in v1.36) instead of a webhook server.
 # Auto-injects a required cost-allocation label when one isn't set.
 #
-# VERIFIED 2026-07-01 against kindest/node v1.36.1: server-side dry-run accepts
+# VERIFIED 2026-10-09 against kindest/node v1.37.0 (previously 2026-07-01 against
+# v1.36.1): server-side dry-run accepts
 # this policy, and live admission testing confirmed a new namespace with no
 # labels gets cost-center=unassigned, while a namespace that already sets
 # cost-center keeps its value AND any unrelated labels (SSA-merge).

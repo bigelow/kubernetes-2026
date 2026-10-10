@@ -23,10 +23,12 @@ mise run local-down   # delete the cluster (all state is inside it)
 
 ## What you get
 
-- **Cluster** `k2026`: 1 server + 2 agents, k3s `v1.36.2-k3s1` — same minor
-  as the repo's v1.36 target, so there is **no version gap** to work around;
-  the GA `admissionregistration.k8s.io/v1` Mutating/ValidatingAdmissionPolicy
-  manifests apply as-is.
+- **Cluster** `k2026`: 1 server + 2 agents, k3s `v1.36.2-k3s1`. The repo
+  target moved to v1.37 on 2026-10-09 (see `CHANGELOG.md`); this stack stays
+  pinned one minor behind because its bring-up was last run live on v1.36.2
+  and has **not** been re-run on `rancher/k3s:v1.37.1-k3s1` (which exists).
+  The GA `admissionregistration.k8s.io/v1` Mutating/ValidatingAdmissionPolicy
+  manifests apply as-is on either minor.
 - **Reference core**, applied unmodified except where noted below:
   namespaces, all three CEL admission policies, the tenant template
   (`team-payments`), and the OTel collector.
@@ -75,7 +77,7 @@ Everything below lives in `local/`; the reference files are untouched.
 | `kube-system` labeled `tier: platform-system` | `up.sh` | k3s system images (traefik, coredns, servicelb) aren't from the approved registry; without the exemption the reference VAP would deny them on any pod re-creation. |
 | Collector: 1 replica, `DEPLOY_ENV=local` | `kustomize/core/patch-otel-collector-deployment.yaml` | Laptop. |
 | Collector exporters → Alloy | `kustomize/core/patch-otel-collector-config.yaml` | The reference exports straight to `tempo`/`loki`/`prometheus` services. Locally the spine is collector → Alloy → Tempo/Loki/Mimir. Receivers + processors (incl. PII redaction) are byte-identical to the reference. |
-| ~~Bugfix ×2: resource-defaults MutatingAdmissionPolicy~~ — **upstreamed 2026-10-10** | (patch removed; reference applied as-is) | Two bugs first discovered live here on k3s v1.36.2: (1) the reference expression returned the whole container for already-satisfied containers, and an ApplyConfiguration may not contain atomic fields (`capabilities.drop`, `command`), so the API server denied such pods — including the repo's own otel-collector on restart, and any defaulted container with atomic fields via `IfNeeded` reinvocation; (2) for containers with requests but no limits, the fixed default limits could land *below* the existing requests (mimir-kafka asks 1 CPU/1Gi), invalidating the pod. Both are now fixed in `security-policy/mutatingadmissionpolicy-resource-defaults.yaml` itself (emit only the missing cpu/memory keys; a missing limit copies the request), verified on kind v1.37.0. This overlay has not been re-run on k3d since. |
+| ~~Bugfix ×2: resource-defaults MutatingAdmissionPolicy~~ — **upstreamed 2026-10-10** | (patch removed; reference applied as-is) | Two bugs first discovered live here on k3s v1.36.2: (1) the reference expression returned the whole container for already-satisfied containers, and an ApplyConfiguration may not contain atomic fields (`capabilities.drop`, `command`), so the API server denied such pods — including the repo's own otel-collector on restart, and any defaulted container with atomic fields via `IfNeeded` reinvocation; (2) for containers with requests but no limits, the fixed default limits could land *below* the existing requests (mimir-kafka asks 1 CPU/1Gi), invalidating the pod. Both are now fixed in `security-policy/mutatingadmissionpolicy-resource-defaults.yaml` itself (emit only the missing cpu/memory keys; a requests-only container is left requests-only), verified on kind v1.37.0. This overlay has not been re-run on k3d since. |
 | `team-demo` tenant namespace | `kustomize/demo/namespace-team-demo.yaml` | Follows the tenant template's "duplicate per tenant" instruction. Laptop-sized quota; egress additionally allows OTLP to the collector (the template's default-deny would silently drop telemetry — a real gap for any telemetry-emitting tenant); ingress additionally allows Traefik; no cost-center label on purpose so the reference MAP provably injects `unassigned`. |
 | Demo image tag `registry.internal.example.com/demo-app` | `up.sh`, `kustomize/demo/demo-app.yaml` | Built locally and imported into k3d under the approved-registry name so the reference image VAP passes as written (`imagePullPolicy: Never` — the registry doesn't exist). |
 | Demo container omits `resources` | `kustomize/demo/demo-app.yaml` | Deliberate: the reference resource-defaults MAP must inject them or the pod can't pass the tenant quota — scheduling doubles as a live policy test. |

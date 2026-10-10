@@ -26,8 +26,8 @@ Corrected:
 
 ## "What's Inside" — accurate per-folder claims
 
-- **security-policy** — CEL admission policies, **verified against v1.36**
-  (kindest/node v1.36.1, server-side dry-run + live admission testing). The
+- **security-policy** — CEL admission policies, **verified against v1.37**
+  (kindest/node v1.37.0, server-side dry-run + live admission testing). The
   image-registry validating policy rejects unapproved images on containers and
   initContainers (and any ephemeralContainers already on the Pod object);
   ephemeral containers injected later via the `pods/ephemeralcontainers`
@@ -38,8 +38,8 @@ Corrected:
   `local-dev/` is a **runnable** Grafana Alloy + Tempo/Loki/Prometheus/Grafana
   stack via `docker compose up`. Not production.
 - **cost-allocation** — a MutatingAdmissionPolicy that **auto-labels** new
-  namespaces with `cost-center` (**verified against v1.36**: kindest/node
-  v1.36.1, server-side dry-run + live admission testing, existing labels
+  namespaces with `cost-center` (**verified against v1.37**: kindest/node
+  v1.37.0, server-side dry-run + live admission testing, existing labels
   preserved), plus a cost-export CronJob skeleton.
 - **workloads** — the StatefulSet is the shape an operator would manage; no
   operator or CRD is included.

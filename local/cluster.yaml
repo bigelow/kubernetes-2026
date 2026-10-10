@@ -1,5 +1,7 @@
-# k3d config for the local reference cluster. k3s pinned to v1.36.x to match
-# the repo's Kubernetes target (MutatingAdmissionPolicy is GA/v1 in 1.36).
+# k3d config for the local reference cluster. k3s pinned to v1.36.2 — one
+# minor behind the repo's v1.37 target as of 2026-10-09. Bump to
+# rancher/k3s:v1.37.1-k3s1 once local/up.sh has been re-run on it (not done
+# yet; see CHANGELOG.md). MutatingAdmissionPolicy is GA/v1 on both minors.
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:

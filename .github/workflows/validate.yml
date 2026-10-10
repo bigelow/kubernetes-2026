@@ -44,12 +44,14 @@ jobs:
           install -m 0755 kubeconform "$HOME/.local/bin/kubeconform"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Validate against Kubernetes + CRD schemas
-        # -ignore-missing-schemas: MutatingAdmissionPolicy only went GA in v1.36
-        # (April 2026). Upstream schema catalogs (both kubeconform's default
-        # and the community CRDs-catalog) may not have caught up yet — this
-        # flag means "warn, don't fail" for resource kinds no catalog knows
-        # about, rather than silently skipping validation or hard-failing on
-        # a catalog lag that has nothing to do with our YAML being wrong.
+        # -ignore-missing-schemas: MutatingAdmissionPolicy went GA in v1.36
+        # (April 2026) and the upstream schema catalogs lagged behind it. As
+        # of 2026-10-09 kubeconform's default catalog has v1.37.x schemas for
+        # every kind in this repo (0 skipped at -kubernetes-version 1.37.0),
+        # so the flag is a no-op today. It stays: it means "warn, don't fail"
+        # for resource kinds no catalog knows about, rather than silently
+        # skipping validation or hard-failing on a catalog lag that has
+        # nothing to do with our YAML being wrong (relevant on the next bump).
         # Gateway API kinds (Gateway, HTTPRoute) ARE covered by the
         # datreeio/CRDs-catalog schema-location below.
         # Scope: Kubernetes manifests from the platform folders only — the
@@ -66,7 +68,7 @@ jobs:
             -print \
             | xargs kubeconform \
                 -strict \
-                -kubernetes-version 1.36.0 \
+                -kubernetes-version 1.37.0 \
                 -schema-location default \
                 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
                 -ignore-missing-schemas \

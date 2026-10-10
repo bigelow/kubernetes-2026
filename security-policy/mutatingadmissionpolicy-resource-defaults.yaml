@@ -8,7 +8,8 @@
 # has(c.resources) guard), leaves pre-set values untouched, admits containers
 # that carry atomic fields (command, securityContext.capabilities.drop) with
 # or without resources under IfNeeded reinvocation, admits the repo's own
-# ai-scheduling example Pod, and never produces requests > limits.
+# ai-scheduling example Pod with both policies live, and never produces
+# requests > limits.
 #
 # Design — keep this when editing the expression:
 #   * Each list entry emits ONLY the cpu/memory keys that are missing, as
@@ -21,10 +22,14 @@
 #     container — so returning `c` denies the pod with "may not mutate atomic
 #     arrays, maps or structs". Switching to Never would only hide that and
 #     break the case where a later mutator adds a container.
-#   * A missing limit copies the matching request when one exists (a fixed
-#     default could land below the request, which the API server rejects);
-#     a missing request copies the limit; only when both are absent do the
-#     fixed defaults apply.
+#   * Pure fill-in-the-gap. A missing request copies the matching limit —
+#     exactly the defaulting the API server already applies to a Pod that
+#     sets limits without requests — so requests never exceed limits. A
+#     missing limit is NOT filled in when the request is set: a requests-only
+#     container keeps that shape (Burstable QoS preserved; ADR-0009 asks for
+#     both to be set but does not say they must be equal, and validate.py
+#     enforces "both set" at CI). The fixed defaults apply only to a key that
+#     is absent from both requests and limits.
 # Scope: regular containers and initContainers. Ephemeral containers are
 # intentionally NOT mutated here (they're added post-creation via the
 # pods/ephemeralcontainers subresource and don't support resource mutation
@@ -48,21 +53,18 @@ spec:
   mutations:
     - patchType: "ApplyConfiguration"
       applyConfiguration:
-        expression: >
+        expression: |
           Object{
             spec: Object.spec{
               containers: object.spec.containers.map(c,
                 Object.spec.containers{
                   name: c.name,
                   ?resources: (
-                    has(c.resources) && has(c.resources.requests) && has(c.resources.limits) &&
-                    "cpu" in c.resources.requests && "memory" in c.resources.requests &&
-                    "cpu" in c.resources.limits && "memory" in c.resources.limits
+                    has(c.resources) && has(c.resources.requests) &&
+                    "cpu" in c.resources.requests && "memory" in c.resources.requests
                   ) ? optional.none() : optional.of(Object.spec.containers.resources{
-                    ?requests: (
-                      has(c.resources) && has(c.resources.requests) &&
-                      "cpu" in c.resources.requests && "memory" in c.resources.requests
-                    ) ? optional.none() : optional.of({
+                    // requests := limits where only the limit is set: the API server already does this on its own (suite test 2b); kept so the policy is self-describing.
+                    requests: {
                       ?"cpu": (has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests)
                         ? optional.none()
                         : optional.of((has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)
@@ -71,19 +73,19 @@ spec:
                         ? optional.none()
                         : optional.of((has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits)
                             ? c.resources.limits["memory"] : "128Mi")
-                    }),
+                    },
                     ?limits: (
-                      has(c.resources) && has(c.resources.limits) &&
-                      "cpu" in c.resources.limits && "memory" in c.resources.limits
+                      ((has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests) ||
+                       (has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)) &&
+                      ((has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests) ||
+                       (has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits))
                     ) ? optional.none() : optional.of({
-                      ?"cpu": (has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)
-                        ? optional.none()
-                        : optional.of((has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests)
-                            ? c.resources.requests["cpu"] : "500m"),
-                      ?"memory": (has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits)
-                        ? optional.none()
-                        : optional.of((has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests)
-                            ? c.resources.requests["memory"] : "512Mi")
+                      ?"cpu": ((has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests) ||
+                               (has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits))
+                        ? optional.none() : optional.of("500m"),
+                      ?"memory": ((has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests) ||
+                                  (has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits))
+                        ? optional.none() : optional.of("512Mi")
                     })
                   })
                 }
@@ -93,14 +95,11 @@ spec:
                   Object.spec.initContainers{
                     name: c.name,
                     ?resources: (
-                      has(c.resources) && has(c.resources.requests) && has(c.resources.limits) &&
-                      "cpu" in c.resources.requests && "memory" in c.resources.requests &&
-                      "cpu" in c.resources.limits && "memory" in c.resources.limits
+                      has(c.resources) && has(c.resources.requests) &&
+                      "cpu" in c.resources.requests && "memory" in c.resources.requests
                     ) ? optional.none() : optional.of(Object.spec.initContainers.resources{
-                      ?requests: (
-                        has(c.resources) && has(c.resources.requests) &&
-                        "cpu" in c.resources.requests && "memory" in c.resources.requests
-                      ) ? optional.none() : optional.of({
+                      // requests := limits where only the limit is set: the API server already does this on its own (suite test 2b); kept so the policy is self-describing.
+                      requests: {
                         ?"cpu": (has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests)
                           ? optional.none()
                           : optional.of((has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)
@@ -109,19 +108,19 @@ spec:
                           ? optional.none()
                           : optional.of((has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits)
                               ? c.resources.limits["memory"] : "128Mi")
-                      }),
+                      },
                       ?limits: (
-                        has(c.resources) && has(c.resources.limits) &&
-                        "cpu" in c.resources.limits && "memory" in c.resources.limits
+                        ((has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests) ||
+                         (has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)) &&
+                        ((has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests) ||
+                         (has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits))
                       ) ? optional.none() : optional.of({
-                        ?"cpu": (has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)
-                          ? optional.none()
-                          : optional.of((has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests)
-                              ? c.resources.requests["cpu"] : "500m"),
-                        ?"memory": (has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits)
-                          ? optional.none()
-                          : optional.of((has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests)
-                              ? c.resources.requests["memory"] : "512Mi")
+                        ?"cpu": ((has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests) ||
+                                 (has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits))
+                          ? optional.none() : optional.of("500m"),
+                        ?"memory": ((has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests) ||
+                                    (has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits))
+                          ? optional.none() : optional.of("512Mi")
                       })
                     })
                   }
