@@ -10,12 +10,15 @@ no webhook Deployment, no TLS cert rotation, no webhook-availability SPOF.
   ephemeral containers injected later (e.g. `kubectl debug`) are **not** gated
   at admission by this policy; `scripts/validate.py` still checks
   ephemeralContainers at CI time.
-- `mutatingadmissionpolicy-resource-defaults.yaml` — **injects** default
-  CPU/memory requests/limits when a container or initContainer omits them
-  (backstop for ADR-0009; `scripts/validate.py` catches the same gap —
-  including ephemeralContainers — at CI time). **Verified against v1.36**
-  (kindest/node v1.36.1, 2026-07-01) via server-side dry-run and live
-  admission testing. Ephemeral containers are deliberately not mutated.
+- `mutatingadmissionpolicy-resource-defaults.yaml` — **fills in** the
+  CPU/memory requests/limits a container or initContainer omits, emitting only
+  the missing keys (backstop for ADR-0009; `scripts/validate.py` catches the
+  same gap — including ephemeralContainers — at CI time). **Verified against
+  v1.37** (kindest/node v1.37.0, 2026-10-10) via server-side dry-run and live
+  admission testing, including containers that carry atomic fields
+  (`command`, `capabilities.drop`) under `IfNeeded` reinvocation — the shape
+  the previous expression denied. Ephemeral containers are deliberately not
+  mutated.
 
 **Scope note:** these are two representative policies, not a full policy
 catalog. A real platform would also cover privilege escalation, host

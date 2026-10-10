@@ -1,14 +1,32 @@
-# ADR-0007 + ADR-0009: inject default requests/limits when a container omits
-# them. GA in v1.36. This is a backstop — scripts/validate.py enforces the
+# ADR-0007 + ADR-0009: fill in the cpu/memory requests and limits a container
+# omits. GA in v1.36. This is a backstop — scripts/validate.py enforces the
 # same rule at CI time; this catches anything that slips past CI.
 #
-# VERIFIED 2026-07-01 against kindest/node v1.36.1: server-side dry-run accepts
-# this policy, and live admission testing confirmed it injects defaults into a
-# container with no resources field (exercising the has(c.resources) guard),
-# defaults a missing-resources initContainer, and leaves already-specified
-# container resources untouched.
-# Scope: defaults regular containers and initContainers. Ephemeral containers
-# are intentionally NOT mutated here (they're added post-creation via the
+# VERIFIED 2026-10-10 against kindest/node v1.37.0: server-side dry-run accepts
+# this policy, and live admission testing confirmed it fills in defaults for a
+# container and an initContainer with no resources field (exercising the
+# has(c.resources) guard), leaves pre-set values untouched, admits containers
+# that carry atomic fields (command, securityContext.capabilities.drop) with
+# or without resources under IfNeeded reinvocation, admits the repo's own
+# ai-scheduling example Pod, and never produces requests > limits.
+#
+# Design — keep this when editing the expression:
+#   * Each list entry emits ONLY the cpu/memory keys that are missing, as
+#     `?`-optional fields guarded with has()/in. A container that already
+#     satisfies the policy yields just its list-map key ({name: c.name}),
+#     which is a no-op under the SSA merge an ApplyConfiguration goes through.
+#   * Never return the container object itself. An ApplyConfiguration may not
+#     carry atomic fields (command, args, capabilities.drop, ...), and with
+#     reinvocationPolicy IfNeeded the second pass sees the already-defaulted
+#     container — so returning `c` denies the pod with "may not mutate atomic
+#     arrays, maps or structs". Switching to Never would only hide that and
+#     break the case where a later mutator adds a container.
+#   * A missing limit copies the matching request when one exists (a fixed
+#     default could land below the request, which the API server rejects);
+#     a missing request copies the limit; only when both are absent do the
+#     fixed defaults apply.
+# Scope: regular containers and initContainers. Ephemeral containers are
+# intentionally NOT mutated here (they're added post-creation via the
 # pods/ephemeralcontainers subresource and don't support resource mutation
 # the same way); CI-side validation in scripts/validate.py still flags them.
 apiVersion: admissionregistration.k8s.io/v1
@@ -18,8 +36,8 @@ metadata:
 spec:
   # IfNeeded: re-run if a later mutator (e.g. a sidecar injector)
   # modifies the pod, so injected containers also receive defaults.
-  # Safe to re-run — the expression is idempotent (containers with
-  # resources set are left unchanged).
+  # Safe to re-run — the expression is idempotent (a satisfied container
+  # produces no patch at all).
   reinvocationPolicy: IfNeeded
   matchConstraints:
     resourceRules:
@@ -34,28 +52,78 @@ spec:
           Object{
             spec: Object.spec{
               containers: object.spec.containers.map(c,
-                (has(c.resources) && has(c.resources.requests) && has(c.resources.limits)) ? c :
                 Object.spec.containers{
                   name: c.name,
-                  resources: Object.spec.containers.resources{
-                    requests: (has(c.resources) && has(c.resources.requests)) ?
-                      c.resources.requests : {"cpu": "100m", "memory": "128Mi"},
-                    limits: (has(c.resources) && has(c.resources.limits)) ?
-                      c.resources.limits : {"cpu": "500m", "memory": "512Mi"}
-                  }
+                  ?resources: (
+                    has(c.resources) && has(c.resources.requests) && has(c.resources.limits) &&
+                    "cpu" in c.resources.requests && "memory" in c.resources.requests &&
+                    "cpu" in c.resources.limits && "memory" in c.resources.limits
+                  ) ? optional.none() : optional.of(Object.spec.containers.resources{
+                    ?requests: (
+                      has(c.resources) && has(c.resources.requests) &&
+                      "cpu" in c.resources.requests && "memory" in c.resources.requests
+                    ) ? optional.none() : optional.of({
+                      ?"cpu": (has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests)
+                        ? optional.none()
+                        : optional.of((has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)
+                            ? c.resources.limits["cpu"] : "100m"),
+                      ?"memory": (has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests)
+                        ? optional.none()
+                        : optional.of((has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits)
+                            ? c.resources.limits["memory"] : "128Mi")
+                    }),
+                    ?limits: (
+                      has(c.resources) && has(c.resources.limits) &&
+                      "cpu" in c.resources.limits && "memory" in c.resources.limits
+                    ) ? optional.none() : optional.of({
+                      ?"cpu": (has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)
+                        ? optional.none()
+                        : optional.of((has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests)
+                            ? c.resources.requests["cpu"] : "500m"),
+                      ?"memory": (has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits)
+                        ? optional.none()
+                        : optional.of((has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests)
+                            ? c.resources.requests["memory"] : "512Mi")
+                    })
+                  })
                 }
               ),
               ?initContainers: !has(object.spec.initContainers) ? optional.none() :
                 optional.of(object.spec.initContainers.map(c,
-                  (has(c.resources) && has(c.resources.requests) && has(c.resources.limits)) ? c :
                   Object.spec.initContainers{
                     name: c.name,
-                    resources: Object.spec.initContainers.resources{
-                      requests: (has(c.resources) && has(c.resources.requests)) ?
-                        c.resources.requests : {"cpu": "100m", "memory": "128Mi"},
-                      limits: (has(c.resources) && has(c.resources.limits)) ?
-                        c.resources.limits : {"cpu": "500m", "memory": "512Mi"}
-                    }
+                    ?resources: (
+                      has(c.resources) && has(c.resources.requests) && has(c.resources.limits) &&
+                      "cpu" in c.resources.requests && "memory" in c.resources.requests &&
+                      "cpu" in c.resources.limits && "memory" in c.resources.limits
+                    ) ? optional.none() : optional.of(Object.spec.initContainers.resources{
+                      ?requests: (
+                        has(c.resources) && has(c.resources.requests) &&
+                        "cpu" in c.resources.requests && "memory" in c.resources.requests
+                      ) ? optional.none() : optional.of({
+                        ?"cpu": (has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests)
+                          ? optional.none()
+                          : optional.of((has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)
+                              ? c.resources.limits["cpu"] : "100m"),
+                        ?"memory": (has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests)
+                          ? optional.none()
+                          : optional.of((has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits)
+                              ? c.resources.limits["memory"] : "128Mi")
+                      }),
+                      ?limits: (
+                        has(c.resources) && has(c.resources.limits) &&
+                        "cpu" in c.resources.limits && "memory" in c.resources.limits
+                      ) ? optional.none() : optional.of({
+                        ?"cpu": (has(c.resources) && has(c.resources.limits) && "cpu" in c.resources.limits)
+                          ? optional.none()
+                          : optional.of((has(c.resources) && has(c.resources.requests) && "cpu" in c.resources.requests)
+                              ? c.resources.requests["cpu"] : "500m"),
+                        ?"memory": (has(c.resources) && has(c.resources.limits) && "memory" in c.resources.limits)
+                          ? optional.none()
+                          : optional.of((has(c.resources) && has(c.resources.requests) && "memory" in c.resources.requests)
+                              ? c.resources.requests["memory"] : "512Mi")
+                      })
+                    })
                   }
                 ))
             }

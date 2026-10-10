@@ -26,12 +26,6 @@ patches:
   # LOCAL: exporters point at Alloy instead of tempo/loki/prometheus
   # directly — the local spine is demo-app -> collector -> Alloy -> backends.
   - path: patch-otel-collector-config.yaml
-  # LOCAL BUGFIX (candidate for upstreaming): the reference expression denies
-  # pods whose containers carry atomic fields (capabilities.drop). See the
-  # patch file for the full analysis.
-  - path: patch-map-resource-defaults.yaml
-    target:
-      group: admissionregistration.k8s.io
-      version: v1
-      kind: MutatingAdmissionPolicy
-      name: default-resource-requests
+  # (The former patch-map-resource-defaults.yaml bugfix was upstreamed into
+  # security-policy/mutatingadmissionpolicy-resource-defaults.yaml on
+  # 2026-10-10; the reference policy is now applied unmodified.)
