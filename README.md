@@ -1,6 +1,7 @@
 # kubernetes-2026
 
 Companion essay: https://bigelow.github.io/posts/kubernetes-2026/
+Follow-up (October 2026): https://bigelow.github.io/posts/kubernetes-2026-reinvocation/
 
 A Kubernetes reference architecture, current as of October 2026 (Kubernetes v1.37).
 Built as a personal reference — every decision is documented as an ADR with its

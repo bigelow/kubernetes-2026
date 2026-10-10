@@ -6,7 +6,7 @@ Original (`content/posts/kubernetes-2026.md`, in the "small honesty discipline" 
 
 Replacement — points at the repo's record of what each run exercised rather than at a version:
 
-> "Intended to inject" became "injects" only after a live test, and the repo's [CHANGELOG](https://github.com/bigelow/kubernetes-2026/blob/main/CHANGELOG.md) records which shapes each verification actually exercised — which is how the gap in the first run was found.
+> "Intended to inject" became "injects" only after a live test, and the repo's [CHANGELOG](https://github.com/bigelow/kubernetes-2026/blob/main/CHANGELOG.md) records which shapes each verification actually exercised.
 
 Also in the same post, the earlier paragraph (line 37) ends with the v1.36.1 live-test list; it stays accurate as a description of that run. The one sentence to add after it:
 
@@ -20,4 +20,4 @@ The published post does not name the ignore file literally; the closest sentence
 
 One-line replacement that names the file as it exists now and how it is loaded:
 
-> The triage rule that keeps scanners honest: every finding is either fixed or suppressed with a written rationale in the repo's `.trivyignore.yaml` (path-scoped where the exception belongs, and passed to trivy with `--ignorefile` because trivy only auto-loads the plain-text format).
+> The triage rule that keeps scanners honest: every finding is either fixed or suppressed with a written rationale in the repo's `.trivyignore.yaml`.
