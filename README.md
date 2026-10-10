@@ -2,7 +2,7 @@
 
 Companion essay: https://bigelow.github.io/posts/kubernetes-2026/
 
-A Kubernetes reference architecture, current as of mid-2026 (Kubernetes v1.36).
+A Kubernetes reference architecture, current as of October 2026 (Kubernetes v1.37).
 Built as a personal reference — every decision is documented as an ADR with its
 rationale, and every example manifest is grouped by the platform concern it addresses.
 
@@ -60,11 +60,14 @@ Nothing here claims more maturity than what's actually in the file.
 
 CI also runs `kubeconform` against the Kubernetes manifests in the platform folders (not every
 YAML file in the repo — Compose files, workflow YAML, and local-dev backend configs are excluded),
-using the community
+pinned to `-kubernetes-version 1.37.0` and using the community
 `datreeio/CRDs-catalog` for Gateway API kinds on top of kubeconform's default schema set. This is
-run with `-ignore-missing-schemas`: `MutatingAdmissionPolicy` only went GA in v1.36 (April 2026),
-and upstream schema catalogs may not have caught up yet — that flag means "warn on unknown kinds,"
-not "silently skip validation." If a resource kind's schema does exist and the manifest is wrong
+run with `-ignore-missing-schemas`: `MutatingAdmissionPolicy` went GA in v1.36 (April 2026) and the
+upstream schema catalogs lagged behind it for a while. As of 2026-10-09 kubeconform's default
+catalog carries v1.37.x schemas for every kind in this repo (the CI command reports 0 skipped
+resources at 1.37.0), so the flag is currently a no-op. It stays because it means "warn on unknown
+kinds," not "silently skip validation," and it keeps a future catalog lag on the next version bump
+from reading as a manifest error. If a resource kind's schema does exist and the manifest is wrong
 against it, the job still fails.
 
 Static IaC analysis runs in the `iac-scan` CI job: **tflint** (with the pinned AWS ruleset) over the
@@ -75,8 +78,9 @@ rationale** next to it (a deliberate reference-repo choice, a false positive, or
 never a blanket rule-disable. The ignore file is in trivy's YAML form so an exception can be scoped
 to a single path where it belongs (the `local/` demo app deliberately omits `resources` so the
 reference MutatingAdmissionPolicy injects them live; that is suppressed for that one file only, and
-`scripts/validate.py` still enforces requests/limits for the platform folders). trivy only
-auto-loads the plain `.trivyignore` format, so `make lint` and CI pass `--ignorefile` explicitly. Run
+`scripts/validate.py` still enforces requests/limits for the platform folders). trivy does not
+auto-load `.trivyignore.yaml` (only the plain-text ignore format), so `make lint` and CI pass
+`--ignorefile .trivyignore.yaml` explicitly. Run
 the same scanners locally with `make lint` (skipped gracefully if the tools aren't installed; CI is
 the authoritative gate).
 

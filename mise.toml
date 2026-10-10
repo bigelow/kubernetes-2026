@@ -3,7 +3,7 @@
 
 [tools]
 k3d = "5.9.0"
-kubectl = "1.36.2"
+kubectl = "1.37.1"
 helm = "3.21.2"
 
 [tasks.local-up]

@@ -19,9 +19,9 @@ variable "cluster_name" {
 
 variable "kubernetes_version" {
   type    = string
-  default = "1.36"
-  # EKS lists 1.36 on standard support (verified July 2026); the repo manifests
-  # target upstream v1.36. Keep this in step with what EKS actually offers.
+  default = "1.37"
+  # EKS lists 1.37 on standard support (verified 2026-10-09); the repo manifests
+  # target upstream v1.37. Keep this in step with what EKS actually offers.
   description = "Kubernetes minor version for the EKS control plane."
 }
 

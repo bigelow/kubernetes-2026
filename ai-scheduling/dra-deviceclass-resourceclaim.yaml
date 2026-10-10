@@ -41,7 +41,9 @@ spec:
       type: RuntimeDefault
   containers:
     - name: worker
-      image: inference-worker:1.0
+      # From the internal registry the image-registry VAP (security-policy/)
+      # allows, so this example applies clean with both policies live.
+      image: registry.internal.example.com/inference-worker:1.0
       resources:
         requests:
           cpu: "2"
