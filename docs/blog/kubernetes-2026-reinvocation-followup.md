@@ -23,7 +23,7 @@ The first half surfaced on July 3, two days after the post went up, bringing the
 
 The second half surfaced on 2026-10-09, re-running the same live suite against `kindest/node:v1.37.0` for the version bump. A pod with `command` and no resources was rejected with `may not mutate atomic arrays, maps or structs: .spec.containers[0].command`. Switching the policy to `Never` made it pass, which named the cause without being the fix.
 
-The fix, now on `main`, is the one the API was asking for all along: emit only the keys that are missing, guard every field with `has()`, and let a satisfied container produce nothing but its list-map key. `IfNeeded` stays. Thirteen focused cases and the original thirty-one now pass on v1.37.0, including the collector, the DRA example pod, and a container injected by a second policy. The local overlay patch is gone; the overlay applies the reference policy unmodified. The k3d stack itself has not been re-run on v1.37, and the repo says so.
+The fix, now on `main`, is the one the API was asking for all along: emit only the keys that are missing, guard every field with `has()`, and let a satisfied container produce nothing but its list-map key. `IfNeeded` stays. Thirteen focused cases and the full suite, now thirty-one, pass on v1.37.0, including the collector, the DRA example pod, and a container injected by a second policy. The local overlay patch is gone; the overlay applies the reference policy unmodified. The k3d stack itself has not been re-run on v1.37, and the repo says so.
 
 ## What I'd change in the sentence
 
